@@ -8,31 +8,19 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Log in to Azure Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: vidlab02acrprod01.azurecr.io
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: vidlab02acrprod01.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-    - name: Build and Push Docker Image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: vidlab02acrprod01.azurecr.io/vidlab-app:latest
-
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-    - name: Update Azure Container App
-      run: |
-        az containerapp update \
-          --name app-vidlab02-prod \
-          --resource-group rg-vidlab02-prod \
-          --image vidlab02acrprod01.azurecr.io/vidlab-app:latest
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: vidlab02acrprod01.azurecr.io/vidlab-app:latest
