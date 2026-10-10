@@ -123,10 +123,12 @@ def home():
 def health():
     return {"status": "healthy", "service": "vidlab-app"}
 
-def is_blurry(image, threshold=100.0):
+def is_blurry(image, threshold=40.0):
     """Calculates variance of Laplacian to determine blurriness."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    return cv2.Laplacian(gray, cv2.CV_64F).var() < threshold
+    variance = cv2.Laplacian(gray, cv2.CV_64F).var()
+    logger.info(f"Frame Laplacian variance score: {variance}")
+    return variance < threshold
 
 @app.route("/extract", methods=["POST"])
 def extract_frames():
