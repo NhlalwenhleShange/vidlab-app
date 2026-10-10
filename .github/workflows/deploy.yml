@@ -24,3 +24,15 @@ jobs:
         context: .
         push: true
         tags: vidlab02acrprod01.azurecr.io/vidlab-app:latest
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Update Azure Container App
+      run: |
+        az containerapp update \
+          --name app-vidlab02-prod \
+          --resource-group rg-vidlab02-prod \
+          --image vidlab02acrprod01.azurecr.io/vidlab-app:latest
