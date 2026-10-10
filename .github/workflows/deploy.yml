@@ -23,15 +23,4 @@ jobs:
       with:
         context: .
         push: true
-        tags: |
-          vidlabacrprod01.azurecr.io/vidlab-app:latest
-          vidlabacrprod01.azurecr.io/vidlab-app:${{ github.sha }}
-
-    - name: Deploy to Azure Container Apps
-      uses: azure/CLI@v1
-      with:
-        inlineScript: |
-          az containerapp update \
-            --name vidlab-app \
-            --resource-group rg-vidlab-prod \
-            --image vidlabacrprod01.azurecr.io/vidlab-app:${{ github.sha }}
+        tags: vidlabacrprod01.azurecr.io/vidlab-app:latest
