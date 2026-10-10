@@ -16,6 +16,12 @@ app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 
+# Blur detection tuning
+BLUR_THRESHOLD = 4.0      # frames below this are considered "blurry"
+MAX_FRAMES = 15           # how many frames to extract
+FRAME_MAX_WIDTH = 640     # resize output frames to this width
+JPEG_QUALITY = 75         # 0-100, lower = smaller payload
+
 HTML_PAGE = """
 <!DOCTYPE html>
 <html>
@@ -103,7 +109,11 @@ async function handle(file){
       throw new Error(data.error || 'Processing failed');
     }
 
-    statusDiv.innerHTML = `✅ Success! Extracted ${data.frames} clear, non-blurry frames.`;
+    if (data.fallback_used) {
+      statusDiv.innerHTML = `✅ Extracted ${data.frames} frames (video was soft — showing sharpest available).`;
+    } else {
+      statusDiv.innerHTML = `✅ Success! Extracted ${data.frames} clear, non-blurry frames.`;
+    }
     
     if(data.images && data.images.length > 0) {
       resultSection.classList.remove('hidden');
@@ -115,7 +125,7 @@ async function handle(file){
         resultGrid.appendChild(card);
       });
     } else {
-      statusDiv.innerHTML = `⚠️ No clear frames were extracted. The video may be too blurry or too short.`;
+      statusDiv.innerHTML = `⚠️ No frames could be extracted. The video may be too short or unreadable.`;
     }
   } catch (err) {
     console.error(err);
@@ -127,21 +137,40 @@ async function handle(file){
 </html>
 """
 
+
 @app.route("/")
 def home():
     return HTML_PAGE
+
 
 @app.route("/health")
 def health():
     return {"status": "healthy", "service": "vidlab-app"}
 
-def is_blurry(image, threshold=40.0):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-    logger.info(f"Frame Laplacian variance score: {variance}")
-    return variance < threshold
 
-def resize_frame(frame, max_width=640):
+@app.route("/diag")
+def diag():
+    """Diagnostic endpoint — confirms OpenCV, numpy, and ffmpeg are all available."""
+    import numpy
+    info = cv2.getBuildInformation()
+    ffmpeg_line = next((l.strip() for l in info.splitlines() if "FFMPEG" in l), "not found")
+    return {
+        "opencv": cv2.__version__,
+        "numpy": numpy.__version__,
+        "ffmpeg_binary": os.popen("which ffmpeg").read().strip() or "NOT FOUND",
+        "ffmpeg_build": ffmpeg_line,
+        "blur_threshold": BLUR_THRESHOLD,
+        "max_frames": MAX_FRAMES,
+    }
+
+
+def compute_variance(image):
+    """Return the Laplacian variance (sharpness score) of a frame."""
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return cv2.Laplacian(gray, cv2.CV_64F).var()
+
+
+def resize_frame(frame, max_width=FRAME_MAX_WIDTH):
     """Resize frame to reduce base64 payload size significantly."""
     h, w = frame.shape[:2]
     if w > max_width:
@@ -149,6 +178,17 @@ def resize_frame(frame, max_width=640):
         new_h = int(h * scale)
         frame = cv2.resize(frame, (max_width, new_h), interpolation=cv2.INTER_AREA)
     return frame
+
+
+def encode_frame(frame):
+    """Encode a BGR frame as a data-URI JPEG string. Returns None on failure."""
+    small = resize_frame(frame, max_width=FRAME_MAX_WIDTH)
+    success, buffer = cv2.imencode('.jpg', small, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+    if not success:
+        return None
+    encoded = base64.b64encode(buffer).decode("utf-8")
+    return f"data:image/jpeg;base64,{encoded}"
+
 
 @app.route("/extract", methods=["POST"])
 def extract_frames():
@@ -178,44 +218,78 @@ def extract_frames():
         if fps <= 0 or fps > 120:
             fps = 30.0
         frame_interval = max(1, int(fps))
-        
-        logger.info(f"Video FPS: {fps}, extracting every {frame_interval} frames")
 
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = frame_count / fps if fps > 0 else 0
+
+        logger.info(
+            f"Video: {width}x{height}, FPS={fps:.2f}, "
+            f"frames={frame_count}, duration={duration:.1f}s, "
+            f"sampling every {frame_interval} frames"
+        )
+
+        # Collect every sampled frame with its variance
+        all_frames = []  # list of (variance, data_uri)
         count = 0
-        saved = 0
-        thumbnails = []
 
-        while saved < 15:
+        while True:
             ret, frame = cap.read()
             if not ret:
                 break
 
             if count % frame_interval == 0:
-                if not is_blurry(frame):
-                    # Resize BEFORE encoding to keep base64 small
-                    small = resize_frame(frame, max_width=640)
-                    
-                    # Encode directly to JPEG in memory (much faster than writing to disk)
-                    success, buffer = cv2.imencode('.jpg', small, [cv2.IMWRITE_JPEG_QUALITY, 75])
-                    if success:
-                        encoded = base64.b64encode(buffer).decode("utf-8")
-                        thumbnails.append(f"data:image/jpeg;base64,{encoded}")
-                        saved += 1
-                        logger.info(f"Saved frame #{saved}")
+                variance = compute_variance(frame)
+                logger.info(f"Frame {count}: variance={variance:.2f}")
+
+                encoded = encode_frame(frame)
+                if encoded:
+                    all_frames.append((variance, encoded))
 
             count += 1
 
         cap.release()
-        logger.info(f"Extracted {saved} frames total. Response size approx: {sum(len(t) for t in thumbnails)//1024} KB")
 
-        return jsonify({"frames": saved, "images": thumbnails})
+        # Pass 1: keep frames that clear the blur threshold, up to MAX_FRAMES
+        thumbnails = []
+        saved = 0
+        for variance, encoded in all_frames:
+            if variance >= BLUR_THRESHOLD:
+                thumbnails.append(encoded)
+                saved += 1
+                if saved >= MAX_FRAMES:
+                    break
+
+        fallback_used = False
+
+        # Pass 2: if nothing passed, fall back to the sharpest available frames
+        if saved == 0 and all_frames:
+            logger.info("No frames passed blur filter — using sharpest available.")
+            all_frames.sort(key=lambda x: x[0], reverse=True)
+            for _, encoded in all_frames[:MAX_FRAMES]:
+                thumbnails.append(encoded)
+                saved += 1
+            fallback_used = True
+
+        total_kb = sum(len(t) for t in thumbnails) // 1024
+        logger.info(
+            f"Extracted {saved} frames total. "
+            f"Response size approx: {total_kb} KB. "
+            f"Fallback used: {fallback_used}"
+        )
+
+        return jsonify({
+            "frames": saved,
+            "images": thumbnails,
+            "fallback_used": fallback_used,
+        })
 
     except Exception as e:
         logger.error(f"Error processing video: {str(e)}", exc_info=True)
         return jsonify({"error": f"Internal error: {str(e)}"}), 500
 
     finally:
-        # Cleanup entire temp dir
         if os.path.exists(tmp_dir):
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
