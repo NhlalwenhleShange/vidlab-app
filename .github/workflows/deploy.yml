@@ -1,4 +1,4 @@
-name: Build and Push to ACR
+name: Build and Push to ACR (Azure Container Registry)
 
 on:
   push:
