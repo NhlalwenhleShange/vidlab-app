@@ -64,16 +64,8 @@ HTML_PAGE = """
   #drop.dragging { border-color: var(--accent); background: #f1f5f9; }
   .frame-card img { transition: transform 0.3s ease; }
   .frame-card:hover img { transform: scale(1.03); }
-  .skeleton {
-    background: linear-gradient(90deg, #eef2f7 0%, #e2e8f0 50%, #eef2f7 100%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite linear;
-  }
-  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   details > summary { list-style: none; cursor: pointer; }
   details > summary::-webkit-details-marker { display: none; }
-  .fade-in { animation: fadeIn 0.35s ease-out; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 </style>
 </head>
 <body class="min-h-screen">
@@ -88,12 +80,10 @@ HTML_PAGE = """
           <path d="M3 10h18M8 4v16M16 4v16"/>
         </svg>
       </span>
-      <span class="font-semibold tracking-tight text-slate-900">VidLab</span>
-      <span class="hidden sm:inline text-[11px] font-medium text-slate-500 border-l border-slate-200 pl-2.5 ml-0.5">Key Frame Extraction</span>
+      <span class="font-bold tracking-tight text-slate-900 text-lg">Vid<span class="text-blue-600">Lab</span></span>
     </a>
 
     <nav class="flex items-center gap-1">
-      <a href="/diag" class="text-sm text-slate-600 hover:text-slate-900 px-3 py-2 rounded-md hover:bg-slate-100 transition-colors">Status</a>
       <a href="https://github.com/NhlalwenhleShange/vidlab-app" target="_blank" rel="noopener"
          class="text-sm text-slate-600 hover:text-slate-900 px-3 py-2 rounded-md hover:bg-slate-100 transition-colors flex items-center gap-1.5">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
@@ -110,10 +100,6 @@ HTML_PAGE = """
 
   <!-- Hero -->
   <section class="mb-10">
-    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gray-200 bg-white text-xs font-medium text-slate-600 mb-4">
-      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-      Service operational
-    </div>
     <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 leading-tight">
       Extract clean, sharp key frames from any video
     </h1>
@@ -189,13 +175,8 @@ HTML_PAGE = """
 
 <!-- ─────────────── Footer ─────────────── -->
 <footer class="border-t border-gray-200 mt-16">
-  <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-slate-500">
-    <div>© VidLab · Built by Nhlalwenhle Shange</div>
-    <div class="flex items-center gap-5">
-      <a href="/health" class="hover:text-slate-900 transition-colors">Health</a>
-      <a href="/diag" class="hover:text-slate-900 transition-colors">Diagnostics</a>
-      <a href="https://github.com/NhlalwenhleShange/vidlab-app" target="_blank" rel="noopener" class="hover:text-slate-900 transition-colors">GitHub</a>
-    </div>
+  <div class="max-w-6xl mx-auto px-6 py-8 text-xs text-slate-500">
+    © 2026 VidLab · Built by Nhlalwenhle Shange
   </div>
 </footer>
 
@@ -221,14 +202,6 @@ function setStatus(kind, text) {
   statusDiv.classList.remove('hidden');
   statusIcon.innerHTML = ICON[kind] || ICON.info;
   statusText.innerHTML = text;
-}
-
-function clearStatus() { statusDiv.classList.add('hidden'); statusText.textContent = ''; }
-
-function fmtBytes(n) {
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-  return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 
 // Drag & drop
