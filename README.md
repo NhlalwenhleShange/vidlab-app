@@ -32,3 +32,43 @@ Supported formats: MP4, MOV, AVI, MKV, WebM · up to 200 MB.
 ---
 
 ## Architecture
+
+
+- **Runtime**: Azure Container Apps (consumption plan, scale-to-zero)
+- **Container**: python:3.10-slim + ffmpeg + gunicorn
+- **Image registry**: Azure Container Registry
+- **CI**: GitHub Actions — builds and pushes SHA-tagged images on every
+  push to `main`
+- **Infrastructure**: provisioned separately in the infra repo using
+  Terraform
+
+---
+
+## Tech stack
+
+| Layer | Tool |
+|---|---|
+| Web framework | Flask 3.x |
+| Video decoding | OpenCV (opencv-python-headless) |
+| Codec support | ffmpeg (installed in container) |
+| WSGI server | gunicorn |
+| Container | Docker |
+| Image registry | Azure Container Registry |
+| Runtime | Azure Container Apps |
+| CI/CD | GitHub Actions |
+| Infrastructure | Terraform |
+
+---
+
+## Local development
+
+### Prerequisites
+
+- Python 3.10+
+- ffmpeg installed on your system (`apt install ffmpeg` or `brew install ffmpeg`)
+
+### Run
+
+```bash
+pip install -r requirements.txt
+python app.py
